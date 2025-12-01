@@ -1,8 +1,18 @@
+# Bỏ qua file hệ thống
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+
+# Bỏ qua dataset (Quá nặng, thầy cô sẽ tự tải hoặc bạn gửi link Drive)
+dataset/
 experiment/
-trained_models/*
-!trained_models/README.md
-dataset/*
-!dataset/README.md
-**/__pycache__
-**/.ipynb_checkpoints
-.history/
+results/
+
+# Bỏ qua các file model nặng (Nên up lên Google Drive rồi để link trong Readme)
+*.pth
+trained_models/
+
+# Bỏ qua môi trường ảo (nếu bạn lỡ tạo trong này)
+dea_env/
+dea_env_new/

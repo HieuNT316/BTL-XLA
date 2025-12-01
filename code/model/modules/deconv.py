@@ -16,7 +16,10 @@ class Conv2d_cd(nn.Module):
         conv_weight = self.conv.weight
         conv_shape = conv_weight.shape
         conv_weight = Rearrange('c_in c_out k1 k2 -> c_in c_out (k1 k2)')(conv_weight)
-        conv_weight_cd = torch.cuda.FloatTensor(conv_shape[0], conv_shape[1], 3 * 3).fill_(0)
+        
+        # [FIX] Tự động tạo tensor trên đúng thiết bị (CPU hoặc GPU)
+        conv_weight_cd = torch.zeros(conv_shape[0], conv_shape[1], 3 * 3).to(conv_weight.device)
+        
         conv_weight_cd[:, :, :] = conv_weight[:, :, :]
         conv_weight_cd[:, :, 4] = conv_weight[:, :, 4] - conv_weight[:, :, :].sum(2)
         conv_weight_cd = Rearrange('c_in c_out (k1 k2) -> c_in c_out k1 k2', k1=conv_shape[2], k2=conv_shape[3])(conv_weight_cd)
@@ -49,17 +52,16 @@ class Conv2d_rd(nn.Module):
         self.theta = theta
 
     def forward(self, x):
-
         if math.fabs(self.theta - 0.0) < 1e-8:
             out_normal = self.conv(x)
             return out_normal 
         else:
             conv_weight = self.conv.weight
             conv_shape = conv_weight.shape
-            if conv_weight.is_cuda:
-                conv_weight_rd = torch.cuda.FloatTensor(conv_shape[0], conv_shape[1], 5 * 5).fill_(0)
-            else:
-                conv_weight_rd = torch.zeros(conv_shape[0], conv_shape[1], 5 * 5)
+            
+            # [FIX] Tự động tạo tensor theo device của weight gốc
+            conv_weight_rd = torch.zeros(conv_shape[0], conv_shape[1], 5 * 5).to(conv_weight.device)
+            
             conv_weight = Rearrange('c_in c_out k1 k2 -> c_in c_out (k1 k2)')(conv_weight)
             conv_weight_rd[:, :, [0, 2, 4, 10, 14, 20, 22, 24]] = conv_weight[:, :, 1:]
             conv_weight_rd[:, :, [6, 7, 8, 11, 13, 16, 17, 18]] = -conv_weight[:, :, 1:] * self.theta
@@ -80,7 +82,10 @@ class Conv2d_hd(nn.Module):
     def get_weight(self):
         conv_weight = self.conv.weight
         conv_shape = conv_weight.shape
-        conv_weight_hd = torch.cuda.FloatTensor(conv_shape[0], conv_shape[1], 3 * 3).fill_(0)
+        
+        # [FIX] Tự động tạo tensor trên đúng thiết bị
+        conv_weight_hd = torch.zeros(conv_shape[0], conv_shape[1], 3 * 3).to(conv_weight.device)
+        
         conv_weight_hd[:, :, [0, 3, 6]] = conv_weight[:, :, :]
         conv_weight_hd[:, :, [2, 5, 8]] = -conv_weight[:, :, :]
         conv_weight_hd = Rearrange('c_in c_out (k1 k2) -> c_in c_out k1 k2', k1=conv_shape[2], k2=conv_shape[2])(conv_weight_hd)
@@ -97,31 +102,26 @@ class Conv2d_vd(nn.Module):
     def get_weight(self):
         conv_weight = self.conv.weight
         conv_shape = conv_weight.shape
-        conv_weight_vd = torch.cuda.FloatTensor(conv_shape[0], conv_shape[1], 3 * 3).fill_(0)
+        
+        # [FIX] Tự động tạo tensor trên đúng thiết bị
+        conv_weight_vd = torch.zeros(conv_shape[0], conv_shape[1], 3 * 3).to(conv_weight.device)
+        
         conv_weight_vd[:, :, [0, 1, 2]] = conv_weight[:, :, :]
         conv_weight_vd[:, :, [6, 7, 8]] = -conv_weight[:, :, :]
         conv_weight_vd = Rearrange('c_in c_out (k1 k2) -> c_in c_out k1 k2', k1=conv_shape[2], k2=conv_shape[2])(conv_weight_vd)
         return conv_weight_vd, self.conv.bias
 
 
+# --- CLASS DECONV ĐÃ ĐƯỢC RE-PARAMETERIZED (FIX CHÍNH) ---
 class DEConv(nn.Module):
     def __init__(self, dim):
-        super(DEConv, self).__init__() 
-        self.conv1_1 = Conv2d_cd(dim, dim, 3, bias=True)
-        self.conv1_2 = Conv2d_hd(dim, dim, 3, bias=True)
-        self.conv1_3 = Conv2d_vd(dim, dim, 3, bias=True)
-        self.conv1_4 = Conv2d_ad(dim, dim, 3, bias=True)
-        self.conv1_5 = nn.Conv2d(dim, dim, 3, padding=1, bias=True)
+        super(DEConv, self).__init__()
+        
+        # LOGIC MỚI: Chỉ khởi tạo 1 lớp Conv duy nhất
+        # Tên biến phải là 'conv1' để khớp với key trong file .pth (down_level1_block1.conv1.weight)
+        self.conv1 = nn.Conv2d(dim, dim, kernel_size=3, padding=1, bias=True)
 
     def forward(self, x):
-        w1, b1 = self.conv1_1.get_weight()
-        w2, b2 = self.conv1_2.get_weight()
-        w3, b3 = self.conv1_3.get_weight()
-        w4, b4 = self.conv1_4.get_weight()
-        w5, b5 = self.conv1_5.weight, self.conv1_5.bias
-
-        w = w1 + w2 + w3 + w4 + w5
-        b = b1 + b2 + b3 + b4 + b5
-        res = nn.functional.conv2d(input=x, weight=w, bias=b, stride=1, padding=1, groups=1)
-
+        # LOGIC MỚI: Chạy thẳng qua 1 lớp Conv, không cộng gộp 5 nhánh nữa
+        res = self.conv1(x)
         return res

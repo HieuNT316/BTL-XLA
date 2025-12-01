@@ -41,7 +41,7 @@ class ContrastLoss(nn.Module):
     def __init__(self, ablation=False):
 
         super(ContrastLoss, self).__init__()
-        self.vgg = Vgg19().cuda()
+        self.vgg = Vgg19().cpu()
         self.l1 = nn.L1Loss()
         self.weights = [1.0/32, 1.0/16, 1.0/8, 1.0/4, 1.0]
         self.ab = ablation
