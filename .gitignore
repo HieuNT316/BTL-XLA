@@ -10,7 +10,7 @@ experiment/
 results/
 
 # Bỏ qua các file model nặng (Nên up lên Google Drive rồi để link trong Readme)
-*.pth
+#*.pth
 trained_models/
 
 # Bỏ qua môi trường ảo (nếu bạn lỡ tạo trong này)
